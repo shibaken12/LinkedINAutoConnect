@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         LinkedIn Autoconnector (at keyword search page)
+// @name         LinkedIn 自動つながり申請システム(at keyword search page)
 // @namespace    http://tampermonkey.net/
 // @version      0.1
 // @description  This script allows you to increase your LinkedIn connections efficiently at keyword search page (People).
@@ -7,133 +7,148 @@
 // @match        https://www.linkedin.com/search/results/people/*
 // @grant        none
 // ==/UserScript==
-
 (function () {
-    //厳格モードを宣言
     'use strict';
 
     var pageIndex;
     var setIntervalId;
-
-    //アロー関数で変数に関数の戻り値を格納
-    //windowオブジェクト：画面上に表示されている全てのオブジェクトの親オブジェクト
-    //window.location.href;URLを取得・設定する
-    //returnでtrueかfalseを返している
+    const COUNT_KEY = 'count';
+    const COUNT_LIMIT = 10;
+    //var totalCount    
     var isCuurentPageSearchResultPage = () => {
+        // 検索結果のURLが一致していたらtrue判定をする
         return window.location.href.toLocaleLowerCase().indexOf('search/results/people/') != 1
     }
 
-
-    //現在のページが明らかに人の検索結果ページである場合、ページ結果インデックスを検出します
-    if (isCuurentPageSearchResultPage()) {
-        //取得したURLを「＆」で分割してelmに格納
+    if (isCuurentPageSearchResultPage()) { // trueの場合
+        //elmにはsplit(&)したやつが配列で入っているのでそれを順番にif文で確認していく
         window.location.href.split('&').forEach(elm => {
-            //取得したURLに指定した文字列があればpageIndexを指定
+            //eleに入っているやつに、page=　という文字列があればif分の中身を実行
             if (elm.indexOf('page=') != -1) {
+                //page= の文字列の長さをlengthで取得。ようはこれで５という数字を取得。
                 var start = 'page='.length
+                //elmをさっき取得した5でslice ⇨elmの中身を５番目のやつから取得。
                 pageIndex = parseInt(elm.slice(start))
                 console.log('pageIndex', pageIndex)
             }
         })
         //when could not "page=" but clearly the current page is clearly the people search result page
+        //上のif文が実行されなかった場合こっちが実行される。現在のURLの後ろに&page=1がついたURLに遷移させる。
         if (!pageIndex) {
-            //取得してきたURLに「&page=1」をつけてそのURLにリダイレクト
             window.location.href += '&page=1'
         }
 
     }
 
     var initAutoConnector = () => {
-        var connectButtonCandidates = document.querySelectorAll('button[data-control-name="srp_profile_actions"]');
-        var connectButtons = [];
+        if (localStorage.getItem(COUNT_KEY) == null) {
+            localStorage.setItem(COUNT_KEY, 0);
+        }
 
+        //表示されたページ上のhtml要素（document）から引数に入っているクラスを見つけてそれを配列形式で該当した全てを変数に代入
+        var connectButtonCandidates = document.querySelectorAll('button[class="artdeco-button artdeco-button--2 artdeco-button--secondary ember-view"]');
+        //変数宣言（配列で）
+        var connectButtons = [];
+        console.log(connectButtonCandidates);
         //filter buttons: get only connect buttons
+        //connectButtonCandidatesに入っている配列の数をlengthで取得し、その数より大きくなるまでループ
         for (var i = 0; i < connectButtonCandidates.length; i++) {
             //console.log('Button condition', connectButtonCandidates[i].innerText)
-            if (connectButtonCandidates[i].innerText == 'Connect') { connectButtons.push(connectButtonCandidates[i]) };
+            //innerTextでHTML要素の<開始タグ>と<終了タグ>に内包されたテキストを取得->さっきquerySelectorAllで取得したやつのテキストにConnectがあるか
+            if (connectButtonCandidates[i].innerText == 'つながりを申請') {
+                //変数connectButtonsにconnectButtonCandidates[i]を追加
+                connectButtons.push(connectButtonCandidates[i]) // Node Listが入ってくる？？
+            };
         }
 
 
         //gets random integers ranged from 0 to 300
         //by changing intervals, LinkedIn is not likely to detect this sort of automation
         var getRandomInteger = () => {
-            var min = 0;
-            var max = 300;
+            var min = 900;
+            var max = 9000;
+            //Math.floor(x)・・・引数で渡した数値の小数点を切り捨てる。
+            //Math.random()・・・0以上1未満の乱数を生成する。
             return Math.floor(Math.random() * (max + 1 - min)) + min;
         }
 
         var connectButtonCount = 0
 
         var connectButtonOperation = () => {
+            try {
+                // if (count <= 8) {
+                if (Number(localStorage.getItem(COUNT_KEY)) <= COUNT_LIMIT) {
+                    // console.log(totalCount);
 
-            if (connectButtonCount < connectButtons.length) {
+                    if (connectButtonCount < connectButtons.length) {
 
-                //clicks "Connect button"
-                connectButtons[connectButtonCount].click()
-                //clicks "Send Invitation" button
-                setTimeout(() => {
-                    //clicks only when "Send Invitation" exists
-                    var sendInvitationElement = document.querySelector('button[aria-label="Send invitation"]')
-                    var verificationOperationDismissElement = document.querySelector('button[aria-label="Dismiss"]')
-                    if (sendInvitationElement) {
-                        console.log('sendInvitationElement exists', sendInvitationElement)
-                        sendInvitationElement.click()
-                    } else if (verificationOperationDismissElement) {
-                        console.log(verificationOperationDismissElement)
-                        //cancels when you face "verify" dialog
-                        verificationOperationDismissElement.click()
+                        connectButtons[connectButtonCount].click();
+
+                        setTimeout(() => {
+                            //clicks only when "Send Invitation" exists
+                            var cancel = document.querySelector('button[class="artdeco-modal__dismiss artdeco-button artdeco-button--circle artdeco-button--muted artdeco-button--2 artdeco-button--tertiary ember-view"]')
+                            if (cancel) {
+                                console.log('sendInvitationElement exists', cancel)
+                                //✖️ボタンを自動でクリックする
+                                cancel.click();
+                            }
+                            connectButtonCount++;
+                            localStorage.setItem(COUNT_KEY, Number(localStorage.getItem(COUNT_KEY))+1);
+                        }, getRandomInteger())
+
                     } else {
-                        console.log('Unexpected error. Could not find button elements for operations.')
+                        console.log('already clicked all connect buttons')
+                        clearInterval(setIntervalId)
+                        //when no connect buttons available
+                        //then move to next result page
+                        var currentUrl = window.location.href
+
+                        //矢印は単純に左から右に変わったよってわかりやすくするためのもの
+                        //console.log(`page=${pageIndex}`, '->', `page=${pageIndex + 1}`)
+
+                        //.replace( 対象の文字, 置換する文字 )
+                        //現在のURLのpage=をプラス１したやつにする
+                        var nextPageUrl = currentUrl.replace(`page=${pageIndex}`, `page=${pageIndex + 1}`)
+                        //console.log(currentUrl.slice(50),nextPageUrl.slice(50))
+                        setTimeout(() => { window.location.href = nextPageUrl }, 5000)
+
                     }
-                    connectButtonCount++
-                }, getRandomInteger())
-                
-
-            } else {
-                console.log('already clicked all connect buttons')
-                clearInterval(setIntervalId)
-                //when no connect buttons available
-                //then move to next result page
-                var currentUrl = window.location.href
-                console.log(`page=${pageIndex}`, '->', `page=${pageIndex + 1}`)
-                var nextPageUrl = currentUrl.replace(`page=${pageIndex}`, `page=${pageIndex + 1}`)
-                //console.log(currentUrl.slice(50),nextPageUrl.slice(50))
-                setTimeout(() => { window.location.href = nextPageUrl }, 1000)
-
+                } else {
+                    clearInterval(setIntervalId);
+                    localStorage.removeItem('count');
+                    localStorage.removeItem(COUNT_KEY);
+                    throw new Error('規定数に達したため終了しました');
+                }
+            } catch (e) {
+                alert(e.message);
             }
-
         }
 
-        setIntervalId = setInterval(connectButtonOperation, 1000 + getRandomInteger())
+        //setInterval…一定時間ごとに特定の処理を繰り返す
+        //setInterval(関数,処理間隔)
+        //第一引数に与えられた関数を、第二引数に与えられた間隔で実行する。処理間隔の単位はミリ秒
+        setIntervalId = setInterval(connectButtonOperation, 6000 + getRandomInteger()) //ここでconnectButtonOperationの関数が走る
 
     }
 
-
-    //checks if the current page is the search result page
+    // 検索結果のURLの場合に、initAutoConnectorという関数を走らせる
     if (isCuurentPageSearchResultPage()) {
-
         console.log('Found "Connect" buttons. Startsing automatically conectiong...')
+        //window（ページ全体）の読み込みが完了した時にinitAutoConnectorを実行する。
         window.onload = () => { initAutoConnector() }
-
     } else {
         console.log('Could not find "Connect" buttons. This page may not be search result page.')
     }
-
-
     //adds Autoconnector bar element to DOM
     var initACBar = () => {
-
         var autoconnectStopButton = document.createElement('div');
-        autoconnectStopButton.innerHTML = `<span id='ACstatus'>Sending invitations automatically...</span><p id='ACstopButton'>Click here to stop LinkedIn Autoconector temporalily</p>
-        <h6>LinkedIn Autoconnector - Powered by Kanta Yamaoka.</h6>`
-
-
+        autoconnectStopButton.innerHTML = `<span id='ACstatus'>自動でつながり申請を実行中です...</span><p id='ACstopButton'>停止したい場合こちらをクリック</p>`
         var css = (prop, value) => {
             autoconnectStopButton.style[prop] = value
         }
 
-        css('width', '30%')
-        css('height', '100px')
+        css('width', '23%')
+        css('height', '95px')
         css('backgroundColor', 'white')
         css('color', '#0178B5')
         css('border', '2px solid #0178B5')
@@ -141,23 +156,20 @@
         css('textAlign', 'center')
         css('textHeight', '10px')
         css('position', 'fixed')
-        css('bottom', '10%')
-        css('left', '10%')
+        css('bottom', '5%')
+        css('left', '1%')
         css('zIndex', '10000')
-
-
 
         document.body.appendChild(autoconnectStopButton)
         document.getElementById('ACstopButton').style.margin = '10px'
 
+
         autoconnectStopButton.onclick = () => {
             clearInterval(setIntervalId)
             css('backgroundColor', '#c8c8c8')
-            document.getElementById('ACstatus').innerText = 'Autoconnector temporalily disabled.'
-            document.getElementById('ACstopButton').innerText = 'To use Autoconecttor again, please refresh the page.'
-
+            document.getElementById('ACstatus').innerText = '自動申請を無効化しました'
+            document.getElementById('ACstopButton').innerText = '再度自動化を実行するには、ページを更新してください'
         }
-
 
     }
 
